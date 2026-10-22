@@ -1,4 +1,5 @@
 const express = require("express");
+
 const Place = require("../models/Place");
 
 const router = express.Router();
@@ -12,6 +13,36 @@ router.get("/", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch places" });
   }
 });
+
+const mongoose = require("mongoose");
+
+// GET: Get one place by ID
+router.get("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        message: "Invalid place ID",
+      });
+    }
+
+    const place = await Place.findById(id);
+
+    if (!place) {
+      return res.status(404).json({
+        message: "Place not found",
+      });
+    }
+
+    res.json(place);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch place",
+    });
+  }
+});
+
 
 // POST: Create a new place
 router.post("/", async (req, res) => {
