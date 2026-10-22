@@ -1,5 +1,5 @@
 const express = require("express");
-
+const mongoose = require("mongoose");
 const Place = require("../models/Place");
 
 const router = express.Router();
@@ -13,8 +13,6 @@ router.get("/", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch places" });
   }
 });
-
-const mongoose = require("mongoose");
 
 // GET: Get one place by ID
 router.get("/:id", async (req, res) => {
@@ -42,7 +40,6 @@ router.get("/:id", async (req, res) => {
     });
   }
 });
-
 
 // POST: Create a new place
 router.post("/", async (req, res) => {
