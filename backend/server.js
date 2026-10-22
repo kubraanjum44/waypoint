@@ -1,12 +1,15 @@
+
 const express = require("express");
 const cors = require("cors");
-require("dotenv").config();
+const mongoose = require("mongoose");
 
+require("dotenv").config();
+const placeRoutes = require("./routes/places");
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
+app.use("/api/places", placeRoutes);
 
 // Home route
 app.get("/", (req, res) => {
@@ -21,9 +24,22 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Start the server
+// Connect to MongoDB and start the server
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Waypoint server running on port ${PORT}`);
-});
+async function startServer() {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI);
+
+    console.log("MongoDB connected successfully!");
+
+    app.listen(PORT, () => {
+      console.log(`Waypoint server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("MongoDB connection failed:", error.message);
+    process.exit(1);
+  }
+}
+
+startServer();
