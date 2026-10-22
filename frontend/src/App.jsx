@@ -1,6 +1,27 @@
+import { useEffect, useState } from "react";
 import "./App.css";
+import api from "./api";
 
 function App() {
+  const [places, setPlaces] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function fetchPlaces() {
+      try {
+        const response = await api.get("/places");
+        setPlaces(response.data);
+      } catch (error) {
+        setError("Could not load places. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchPlaces();
+  }, []);
+
   return (
     <div className="app">
       <nav className="navbar">
@@ -36,17 +57,34 @@ function App() {
         <section id="explore" className="explore-section">
           <p className="tagline">FIND YOUR NEXT DESTINATION</p>
           <h2>Explore the world</h2>
-          <p className="section-text">
-            Amazing places are waiting to be discovered.
-          </p>
 
-          <div className="empty-state">
-            <span>🌍</span>
-            <h3>New places are coming soon</h3>
-            <p>
-              Our collection of destinations is being prepared. Come back soon
-              to discover something amazing.
-            </p>
+          {loading && <p>Loading places...</p>}
+
+          {error && <p>{error}</p>}
+
+          {!loading && !error && places.length === 0 && (
+            <div className="empty-state">
+              <span>🌍</span>
+              <h3>New places are coming soon</h3>
+              <p>Our collection of destinations is being prepared.</p>
+            </div>
+          )}
+
+          <div className="places-grid">
+            {places.map((place) => (
+              <article className="place-card" key={place._id}>
+                {place.imageUrl && (
+                  <img src={place.imageUrl} alt={place.name} />
+                )}
+
+                <div className="place-info">
+                  <p className="tagline">{place.category}</p>
+                  <h3>{place.name}</h3>
+                  <p>{place.description}</p>
+                  <p>📍 {place.location}</p>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 
