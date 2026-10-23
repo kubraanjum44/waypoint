@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { Routes, Route, Link } from "react-router-dom";
+import {
+  Routes,
+  Route,
+  Link,
+  useSearchParams,
+  useNavigate,
+} from "react-router-dom";
 import "./App.css";
 import api from "./api";
 import PlaceDetails from "./PlaceDetails";
@@ -141,6 +147,8 @@ function AuthModal({ onClose, onLogin }) {
 }
 
 function HomePage({ user, onOpenAuth, onLogout }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [places, setPlaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -156,6 +164,59 @@ function HomePage({ user, onOpenAuth, onLogout }) {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [editingPlaceId, setEditingPlaceId] = useState(null);
+  const [existingImageUrl, setExistingImageUrl] = useState("");
+
+  useEffect(() => {
+    const requestedEditId = searchParams.get("edit");
+    if (!requestedEditId || !user) return;
+
+    let cancelled = false;
+    async function loadPlaceForEditing() {
+      try {
+        const response = await api.get(`/places/${requestedEditId}`);
+        const place = response.data;
+        const ownerId =
+          typeof place.owner === "object"
+            ? place.owner?._id || place.owner?.id
+            : place.owner;
+        const currentUserId = user.id || user._id;
+
+        if (String(ownerId || "") !== String(currentUserId || "")) {
+          setMessage("You can only edit places you own.");
+          setSearchParams({}, { replace: true });
+          return;
+        }
+
+        if (cancelled) return;
+        setEditingPlaceId(place._id);
+        setName(place.name || "");
+        setDescription(place.description || "");
+        setLocation(place.location || "");
+        setCategory(place.category || "Nature");
+        setLatitude(place.latitude ?? "");
+        setLongitude(place.longitude ?? "");
+        setExistingImageUrl(place.imageUrl || "");
+        setImageFile(null);
+        setMessage("Editing your destination. Save changes when finished.");
+        document
+          .getElementById("share")
+          ?.scrollIntoView({ behavior: "smooth" });
+      } catch (loadError) {
+        if (!cancelled) {
+          setMessage(
+            loadError.response?.data?.message ||
+              "Could not load this place for editing.",
+          );
+        }
+      }
+    }
+
+    loadPlaceForEditing();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, setSearchParams, user]);
 
   useEffect(() => {
     async function fetchPlaces() {
@@ -185,7 +246,7 @@ function HomePage({ user, onOpenAuth, onLogout }) {
       description: description.trim(),
       location: location.trim(),
       category,
-      imageUrl: "",
+      imageUrl: editingPlaceId ? existingImageUrl : "",
       latitude: latitude.trim() === "" ? undefined : Number(latitude),
       longitude: longitude.trim() === "" ? undefined : Number(longitude),
     };
@@ -227,8 +288,17 @@ function HomePage({ user, onOpenAuth, onLogout }) {
         placeData.imageUrl = uploadResponse.data.imageUrl;
       }
 
-      const response = await api.post("/places", placeData);
-      setPlaces((currentPlaces) => [response.data, ...currentPlaces]);
+      const response = editingPlaceId
+        ? await api.put(`/places/${editingPlaceId}`, placeData)
+        : await api.post("/places", placeData);
+
+      setPlaces((currentPlaces) =>
+        editingPlaceId
+          ? currentPlaces.map((item) =>
+              item._id === editingPlaceId ? response.data : item,
+            )
+          : [response.data, ...currentPlaces],
+      );
       setName("");
       setDescription("");
       setLocation("");
@@ -236,8 +306,15 @@ function HomePage({ user, onOpenAuth, onLogout }) {
       setLongitude("");
       setCategory("Nature");
       setImageFile(null);
+      setExistingImageUrl("");
+      setEditingPlaceId(null);
+      setSearchParams({}, { replace: true });
       event.target.reset();
-      setMessage("Place added successfully! 🎉");
+      setMessage(
+        editingPlaceId
+          ? "Place updated successfully! 🎉"
+          : "Place added successfully! 🎉",
+      );
     } catch (addError) {
       console.error("Add place failed:", addError.response?.data || addError);
       setMessage(
@@ -412,9 +489,33 @@ function HomePage({ user, onOpenAuth, onLogout }) {
                 {imageUploading
                   ? "Uploading photo..."
                   : saving
-                    ? "Adding place..."
-                    : "Add Place →"}
+                    ? editingPlaceId
+                      ? "Saving changes..."
+                      : "Adding place..."
+                    : editingPlaceId
+                      ? "Save Changes →"
+                      : "Add Place →"}
               </button>
+              {editingPlaceId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPlaceId(null);
+                    setExistingImageUrl("");
+                    setImageFile(null);
+                    setName("");
+                    setDescription("");
+                    setLocation("");
+                    setLatitude("");
+                    setLongitude("");
+                    setCategory("Nature");
+                    setSearchParams({}, { replace: true });
+                    setMessage("Editing cancelled.");
+                  }}
+                >
+                  Cancel Edit
+                </button>
+              )}
               {message && <p role="status">{message}</p>}
             </form>
           ) : (
@@ -488,7 +589,7 @@ function HomePage({ user, onOpenAuth, onLogout }) {
                       <button
                         type="button"
                         onClick={() => {
-                          window.location.href = `/places/${place._id}?edit=true`;
+                          navigate(`/?edit=${place._id}`);
                         }}
                       >
                         ✏️ Edit
