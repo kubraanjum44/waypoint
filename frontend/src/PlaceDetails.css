@@ -1,0 +1,57 @@
+
+.place-details {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 24px;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 28px;
+  color: #286247;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.details-image {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  border-radius: 18px;
+  margin-bottom: 24px;
+}
+
+.place-details h1 {
+  font-size: clamp(32px, 5vw, 48px);
+  margin: 12px 0;
+}
+
+.details-location,
+.details-description {
+  color: #58665d;
+  line-height: 1.7;
+}
+
+.details-description {
+  font-size: 17px;
+  margin: 24px 0;
+}
+
+.map-section {
+  margin-top: 36px;
+  padding: 24px;
+  border-radius: 16px;
+  background: #f1f5f2;
+}
+
+.details-message {
+  padding: 40px 24px;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .place-details {
+    margin: 20px auto;
+    padding: 16px;
+  }
+}
