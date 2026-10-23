@@ -10,10 +10,12 @@ const placeSchema = new mongoose.Schema(
     description: {
       type: String,
       required: true,
+      trim: true,
     },
     location: {
       type: String,
       required: true,
+      trim: true,
     },
     category: {
       type: String,
@@ -25,10 +27,14 @@ const placeSchema = new mongoose.Schema(
     },
     latitude: Number,
     longitude: Number,
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Place", placeSchema);

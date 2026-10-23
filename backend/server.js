@@ -1,15 +1,21 @@
-
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 
 require("dotenv").config();
+
 const placeRoutes = require("./routes/places");
+const uploadRoutes = require("./routes/uploads");
+const authRoutes = require("./routes/auth");
+
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
 app.use("/api/places", placeRoutes);
+app.use("/api/uploads", uploadRoutes);
+app.use("/api/auth", authRoutes);
 
 // Home route
 app.get("/", (req, res) => {
@@ -25,7 +31,7 @@ app.get("/api/health", (req, res) => {
 });
 
 // Connect to MongoDB and start the server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 async function startServer() {
   try {

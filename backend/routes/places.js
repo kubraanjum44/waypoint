@@ -1,48 +1,49 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const Place = require("../models/Place");
+const requireAuth = require("../middleware/auth");
 
 const router = express.Router();
 
-// GET: Get all places
+// Public: browse all destinations.
 router.get("/", async (req, res) => {
   try {
-    const places = await Place.find();
-    res.json(places);
+    const places = await Place.find()
+      .populate("owner", "name")
+      .sort({ createdAt: -1 });
+
+    return res.json(places);
   } catch (error) {
-    res.status(500).json({ message: "Failed to fetch places" });
+    console.error("Fetch places failed:", error.message);
+    return res.status(500).json({ message: "Failed to fetch places." });
   }
 });
 
-// GET: Get one place by ID
+// Public: view one destination.
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
     if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({
-        message: "Invalid place ID",
-      });
+      return res.status(400).json({ message: "Invalid place ID." });
     }
 
-    const place = await Place.findById(id);
+    const place = await Place.findById(id).populate("owner", "name");
 
     if (!place) {
-      return res.status(404).json({
-        message: "Place not found",
-      });
+      return res.status(404).json({ message: "Place not found." });
     }
 
-    res.json(place);
+    return res.json(place);
   } catch (error) {
-    res.status(500).json({
-      message: "Failed to fetch place",
-    });
+    console.error("Fetch place failed:", error.message);
+    return res.status(500).json({ message: "Failed to fetch place." });
   }
 });
 
-// POST: Create a new place
-router.post("/", async (req, res) => {
+// Protected: only a logged-in user can create a destination.
+// Ownership is assigned from the verified JWT, never from req.body.
+router.post("/", requireAuth, async (req, res) => {
   try {
     const {
       name,
@@ -54,13 +55,74 @@ router.post("/", async (req, res) => {
       longitude,
     } = req.body;
 
-    if (!name || !description || !location) {
+    if (
+      typeof name !== "string" ||
+      typeof description !== "string" ||
+      typeof location !== "string" ||
+      !name.trim() ||
+      !description.trim() ||
+      !location.trim()
+    ) {
       return res.status(400).json({
-        message: "Name, description and location are required",
+        message: "Name, description, and location are required.",
       });
     }
 
-    const newPlace = new Place({
+    if (
+      (latitude !== undefined &&
+        (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) ||
+      (longitude !== undefined &&
+        (!Number.isFinite(longitude) || longitude < -180 || longitude > 180))
+    ) {
+      return res.status(400).json({ message: "Invalid map coordinates." });
+    }
+
+    if ((latitude === undefined) !== (longitude === undefined)) {
+      return res.status(400).json({
+        message: "Provide both latitude and longitude, or leave both blank.",
+      });
+    }
+
+    const savedPlace = await Place.create({
+      name: name.trim(),
+      description: description.trim(),
+      location: location.trim(),
+      category,
+      imageUrl: typeof imageUrl === "string" ? imageUrl : "",
+      latitude,
+      longitude,
+      owner: req.userId,
+    });
+
+    return res.status(201).json(savedPlace);
+  } catch (error) {
+    console.error("Create place failed:", error.message);
+    return res.status(500).json({ message: "Failed to create place." });
+  }
+});
+
+// Protected: only the owner can edit their destination.
+router.put("/:id", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: "Invalid place ID." });
+    }
+
+    const place = await Place.findById(id);
+
+    if (!place) {
+      return res.status(404).json({ message: "Place not found." });
+    }
+
+    if (!place.owner || place.owner.toString() !== req.userId) {
+      return res.status(403).json({
+        message: "You can only edit destinations you created.",
+      });
+    }
+
+    const {
       name,
       description,
       location,
@@ -68,13 +130,78 @@ router.post("/", async (req, res) => {
       imageUrl,
       latitude,
       longitude,
-    });
+    } = req.body;
 
-    const savedPlace = await newPlace.save();
+    if (
+      typeof name !== "string" ||
+      typeof description !== "string" ||
+      typeof location !== "string" ||
+      !name.trim() ||
+      !description.trim() ||
+      !location.trim()
+    ) {
+      return res.status(400).json({
+        message: "Name, description, and location are required.",
+      });
+    }
 
-    res.status(201).json(savedPlace);
+    if (
+      (latitude !== undefined &&
+        (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) ||
+      (longitude !== undefined &&
+        (!Number.isFinite(longitude) || longitude < -180 || longitude > 180))
+    ) {
+      return res.status(400).json({ message: "Invalid map coordinates." });
+    }
+
+    if ((latitude === undefined) !== (longitude === undefined)) {
+      return res.status(400).json({
+        message: "Provide both latitude and longitude, or leave both blank.",
+      });
+    }
+
+    place.name = name.trim();
+    place.description = description.trim();
+    place.location = location.trim();
+    place.category = category || "Other";
+    if (typeof imageUrl === "string") place.imageUrl = imageUrl;
+    place.latitude = latitude;
+    place.longitude = longitude;
+
+    await place.save();
+    return res.json(place);
   } catch (error) {
-    res.status(500).json({ message: "Failed to create place" });
+    console.error("Update place failed:", error.message);
+    return res.status(500).json({ message: "Failed to update place." });
+  }
+});
+
+// Protected: only the owner can delete their destination.
+router.delete("/:id", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: "Invalid place ID." });
+    }
+
+    const place = await Place.findById(id);
+
+    if (!place) {
+      return res.status(404).json({ message: "Place not found." });
+    }
+
+    if (!place.owner || place.owner.toString() !== req.userId) {
+      return res.status(403).json({
+        message: "You can only delete destinations you created.",
+      });
+    }
+
+    await place.deleteOne();
+    return res.json({ message: "Place deleted successfully." });
+  } catch (error) {
+    console.error("Delete place failed:", error.message);
+    return res.status(500).json({ message: "Failed to delete place." });
   }
 });
 
