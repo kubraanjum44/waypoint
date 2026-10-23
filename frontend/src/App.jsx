@@ -8,6 +8,11 @@ function HomePage() {
   const [places, setPlaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
+
+  const [imageFile, setImageFile] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -21,7 +26,9 @@ function HomePage() {
 
   useEffect(() => {
     async function fetchPlaces() {
+
       try {
+        
         const response = await api.get("/places");
         setPlaces(response.data);
       } catch (error) {
@@ -34,32 +41,88 @@ function HomePage() {
     fetchPlaces();
   }, []);
 
-  async function handleAddPlace(event) {
-    event.preventDefault();
-    setSaving(true);
-    setMessage("");
 
-    try {
-      const response = await api.post("/places", {
-        name,
-        description,
-        location,
-        category,
-      });
 
-      setPlaces((currentPlaces) => [response.data, ...currentPlaces]);
+async function handleAddPlace(event) {
+  event.preventDefault();
 
-      setName("");
-      setDescription("");
-      setLocation("");
-      setCategory("Nature");
-      setMessage("Place added successfully! 🎉");
-    } catch (error) {
-      setMessage("Could not add place. Please try again.");
-    } finally {
-      setSaving(false);
-    }
+  const placeData = {
+    name: name.trim(),
+    description: description.trim(),
+    location: location.trim(),
+    category,
+    imageUrl: "",
+  };
+
+  if (!placeData.name || !placeData.description || !placeData.location) {
+    setMessage("Please fill in the place name, description, and location.");
+    return;
   }
+
+  setSaving(true);
+  setMessage("");
+
+  try {
+    if (imageFile) {
+      setImageUploading(true);
+
+      const formData = new FormData();
+      formData.append("image", imageFile);
+
+      const uploadResponse = await api.post("/uploads", formData);
+      placeData.imageUrl = uploadResponse.data.imageUrl;
+    }
+
+    console.log("Sending place data:", placeData);
+
+    const response = await api.post("/places", placeData);
+
+    setPlaces((currentPlaces) => [response.data, ...currentPlaces]);
+
+    setName("");
+    setDescription("");
+    setLocation("");
+    setCategory("Nature");
+    setImageFile(null);
+    event.target.reset();
+
+    setMessage("Place added successfully! 🎉");
+  } catch (error) {
+    console.error("Add place failed:", error.response?.data || error);
+
+    setMessage(
+      error.response?.data?.message ||
+        error.message ||
+        "Could not add place. Please try again.",
+    );
+  } finally {
+    setSaving(false);
+    setImageUploading(false);
+  }
+}
+
+
+
+async function handleDeletePlace(id) {
+  const confirmed = window.confirm(
+    "Are you sure you want to delete this place?",
+  );
+
+  if (!confirmed) return;
+
+  try {
+    await api.delete(`/places/${id}`);
+
+    setPlaces((currentPlaces) =>
+      currentPlaces.filter((place) => place._id !== id),
+    );
+
+    setMessage("Place deleted successfully! 🗑️");
+  } catch (error) {
+    console.error("Delete failed:", error);
+    setMessage("Could not delete place. Please try again.");
+  }
+}
 
   const filteredPlaces = places.filter((place) => {
     const searchText = search.toLowerCase();
@@ -142,6 +205,19 @@ function HomePage() {
               required
             />
 
+            <label className="image-upload-label">
+              Destination photo
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(event) =>
+                  setImageFile(event.target.files?.[0] || null)
+                }
+              />
+            </label>
+
+            {imageFile && <p>Selected: {imageFile.name}</p>}
+
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
@@ -156,7 +232,11 @@ function HomePage() {
             </select>
 
             <button type="submit" disabled={saving}>
-              {saving ? "Adding place..." : "Add Place →"}
+              {imageUploading
+                ? "Uploading photo..."
+                : saving
+                  ? "Adding place..."
+                  : "Add Place →"}
             </button>
 
             {message && <p role="status">{message}</p>}
@@ -224,7 +304,32 @@ function HomePage() {
                   <h3>{place.name}</h3>
                   <p>{place.description}</p>
                   <p>📍 {place.location}</p>
+                  
                   <span className="place-card-link">View details →</span>
+
+                  <div className="place-actions">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        window.location.href = `/places/${place._id}?edit=true`;
+                      }}
+                    >
+                      ✏️ Edit
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleDeletePlace(place._id);
+                      }}
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
                 </div>
               </Link>
             ))}
